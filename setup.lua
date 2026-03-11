@@ -9,9 +9,11 @@ local scripts = {
     'gps.lua',
     'scanner.lua',
     'config.lua',
+    'breeding_data.lua',
     'autoStat.lua',
     'autoTier.lua',
     'autoSpread.lua',
+    'autoBreed.lua',
     'uninstall.lua'
 }
 

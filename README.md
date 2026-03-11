@@ -94,6 +94,10 @@ The third program **autoSpread** automatically spreads (duplicates) the target c
 
 (Optional) Disable useStorageFarm in the config to harvest child crops on the working farm during autoSpread instead of moving them to the storage farm. They are only harvested once they reach their maximum growth stage - 1 for the best chances at dropping seeds. Everything is deposited in the storage chest, including other types of seeds and those that do not meet the autoSpreadThreshold. This setting also causes autoSpread to run until the maximum breeding round is reached which means a single iteration can collect hundreds of seeds. It is recommended to use a full-block ME interface as the storage chest if using this method.
 
+The fourth program **autoBreed** breeds toward a specific target crop, then spreads it once acquired. Set **config.targetCropName** (e.g. `diareed`, `stickreed`) or place the desired crop in slot 1. The bot fetches IC2 mutation data from the internet (config.breedingDataURL) and places preferred parent pairs to maximize the chance of the target; when the target appears it switches to spread mode automatically. To run:
+
+    autoBreed
+
 Lastly, these programs can be chained together. This may be helpful if you have brand new crops (ie. 1/1/1 spruce saplings) and want them to immediately start spreading once fully statted-up. No crops are added to the storage farm until autoStat is complete. Note that keepMutations in the config should probably be set to false (default) otherwise the storage farm will be overwritten once the second program begins. To run autoSpread after autoStat, simply enter:
 
     autoStat && autoSpread

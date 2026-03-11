@@ -28,6 +28,35 @@ local function workingSlotToPos(slot)
     return {-x, y}
 end
 
+-- Inverse: position (px, py) to working farm slot (for adjacency)
+local function workingPosToSlot(px, py)
+    local x = -px
+    local row
+    if x % 2 == 0 then
+        row = py - 1
+    else
+        row = config.workingFarmSize - py
+    end
+    local slot = x * config.workingFarmSize + row + 1
+    if slot < 1 or slot > config.workingFarmArea then
+        return nil
+    end
+    return slot
+end
+
+-- Adjacent slots (up/down/left/right in grid) for placement logic
+local function getAdjacentWorkingSlots(slot)
+    local pos = workingSlotToPos(slot)
+    local out = {}
+    for _, delta in ipairs({{0,1},{0,-1},{1,0},{-1,0}}) do
+        local s = workingPosToSlot(pos[1] + delta[1], pos[2] + delta[2])
+        if s then
+            out[#out + 1] = s
+        end
+    end
+    return out
+end
+
 -- ======================== STORAGE FARM ========================
 --  __________________________
 -- |09 10 27 28 45 46 63 64 81|  9x9 Slot Map
@@ -172,6 +201,8 @@ end
 
 return {
     workingSlotToPos = workingSlotToPos,
+    workingPosToSlot = workingPosToSlot,
+    getAdjacentWorkingSlots = getAdjacentWorkingSlots,
     storageSlotToPos = storageSlotToPos,
     getFacing = getFacing,
     getPos = getPos,
