@@ -36,20 +36,40 @@ end
 
 -- ===================== TARGET & PREFERRED PAIRS =====================
 
+-- Case-insensitive lookup: return (breeding entry, canonical key) for target name
+local function getBreedingEntry(name)
+    if not name or not breedingData then return nil, nil end
+    local lower = string.lower(name)
+    for k, v in pairs(breedingData) do
+        if string.lower(k) == lower then return v, k end
+    end
+    return nil, nil
+end
+
+local function isTargetCrop(name)
+    return name and targetCrop and string.lower(name) == string.lower(targetCrop)
+end
+
 local function isPreferredParent(name)
-    if not breedingData[targetCrop] then return false end
-    for _, pair in ipairs(breedingData[targetCrop]) do
-        if pair[1] == name or pair[2] == name then return true end
+    local entry = getBreedingEntry(targetCrop)
+    if not entry then return false end
+    local lower = name and string.lower(name)
+    for _, pair in ipairs(entry) do
+        if (pair[1] and string.lower(pair[1]) == lower) or (pair[2] and string.lower(pair[2]) == lower) then
+            return true
+        end
     end
     return false
 end
 
--- Other parent in pair for given crop name
+-- Other parent in pair for given crop name (case-insensitive)
 local function otherInPair(name)
-    if not breedingData[targetCrop] then return nil end
-    for _, pair in ipairs(breedingData[targetCrop]) do
-        if pair[1] == name then return pair[2] end
-        if pair[2] == name then return pair[1] end
+    local entry = getBreedingEntry(targetCrop)
+    if not entry then return nil end
+    local lower = name and string.lower(name)
+    for _, pair in ipairs(entry) do
+        if pair[1] and string.lower(pair[1]) == lower then return pair[2] end
+        if pair[2] and string.lower(pair[2]) == lower then return pair[1] end
     end
     return nil
 end
@@ -72,7 +92,7 @@ local function bestParentSlotForChild(childSlot, childName)
     for _, pSlot in ipairs(parentSlotsOfChild(childSlot)) do
         local c = farm[pSlot]
         local name = c and c.name
-        if name == 'air' or name == 'emptyCrop' or (want and name == want) then
+        if name == 'air' or name == 'emptyCrop' or (want and name and string.lower(name) == string.lower(want)) then
             return pSlot
         end
     end
@@ -101,7 +121,7 @@ local function spreadCheckChild(slot, crop)
     elseif scanner.isWeed(crop, 'storage') then
         action.deweed()
         action.placeCropStick()
-    elseif crop.name == targetCrop then
+    elseif isTargetCrop(crop.name) then
         local stat = crop.gr + crop.ga - crop.re
         if stat >= config.autoStatThreshold and findEmpty() and crop.gr <= config.workingMaxGrowth and crop.re <= config.workingMaxResistance then
             action.transplant(gps.workingSlotToPos(slot), gps.workingSlotToPos(emptySlot))
@@ -172,7 +192,7 @@ local function targetOnFarm()
     local farm = database.getFarm()
     for slot = 1, config.workingFarmArea do
         local c = farm[slot]
-        if c and c.name == targetCrop then return true end
+        if c and isTargetCrop(c.name) then return true end
     end
     return false
 end
@@ -190,7 +210,7 @@ local function breedCheckChild(slot, crop)
         return true
     end
     -- Target acquired -> switch to spread
-    if crop.name == targetCrop then
+    if isTargetCrop(crop.name) then
         return false
     end
     -- Preferred parent: transplant to best parent slot to maximize pair
@@ -256,9 +276,10 @@ end
 -- ===================== MAIN =====================
 
 local function main()
-    targetCrop = config.targetCropName
+    local args = {...}
+    targetCrop = (args[1] and args[1] ~= '') and args[1] or config.targetCropName
     if not targetCrop or targetCrop == '' then
-        print('autoBreed: Set config.targetCropName (e.g. diareed, stickreed)')
+        print('autoBreed: Pass target crop as argument (e.g. autoBreed diareed) or set config.targetCropName')
         return
     end
     targetCrop = targetCrop:gsub('^%s+', ''):gsub('%s+$', '')
@@ -274,7 +295,9 @@ local function main()
     end
 
     breedingData = fetchBreedingData()
-    if not breedingData[targetCrop] then
+    local entry, canonical = getBreedingEntry(targetCrop)
+    if canonical then targetCrop = canonical end
+    if not entry then
         print(string.format('autoBreed: No breeding data for "%s"; will use any crossbreeding.', targetCrop))
     else
         print(string.format('autoBreed: Using preferred parent pairs for "%s"', targetCrop))

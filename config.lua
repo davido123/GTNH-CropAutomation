@@ -2,7 +2,7 @@ local config = {
     -- NOTE: EACH CONFIG SHOULD END WITH A COMMA
 
     -- Side Length of Working Farm
-    workingFarmSize = 6,
+    workingFarmSize = 5,
     -- Side Length of Storage Farm
     storageFarmSize = 9,
 
@@ -11,7 +11,7 @@ local config = {
     -- Moves crops to the storage farm, otherwise dumps everything in the storage chest.
     useStorageFarm = true,
     -- Keep crops that are not the target crop during autoSpread and autoStat
-    keepMutations = false,
+    keepMutations = true,
     -- Stat-up crops during autoTier (Very Slow)
     statWhileTiering = false,
 
@@ -38,7 +38,7 @@ local config = {
     -- Check existing crops on the storage farm before spreading or tiering
     checkStorageBefore = false,
 
-    -- autoBreed: target crop to breed toward (e.g. 'diareed', 'stickreed'). Set in config or leave nil to use slot 1.
+    -- autoBreed: target crop to breed toward. Use quotes, e.g. 'saltyRoot' or 'diareed'. Case-insensitive.
     targetCropName = nil,
     -- URL to fetch breeding_data.lua from (optional update). Set to empty string to skip fetch.
     breedingDataURL = 'https://raw.githubusercontent.com/davido123/GTNH-CropAutomation/main/breeding_data.lua',
