@@ -275,7 +275,7 @@ end
 
 -- ===================== MAIN =====================
 
-local function main()
+local function main(...)
     local args = {...}
     targetCrop = (args[1] and args[1] ~= '') and args[1] or config.targetCropName
     if not targetCrop or targetCrop == '' then
@@ -344,4 +344,4 @@ local function main()
     print('autoBreed: Complete!')
 end
 
-main()
+main(...)
