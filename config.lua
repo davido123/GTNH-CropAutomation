@@ -39,7 +39,7 @@ local config = {
     checkStorageBefore = false,
 
     -- autoBreed: target crop to breed toward. Use quotes, e.g. 'saltyRoot' or 'diareed'. Case-insensitive.
-    targetCropName = nil,
+    targetCropName = 'saltyRoot',
     -- URL to fetch breeding_data.lua from (optional update). Set to empty string to skip fetch.
     breedingDataURL = 'https://raw.githubusercontent.com/davido123/GTNH-CropAutomation/main/breeding_data.lua',
 

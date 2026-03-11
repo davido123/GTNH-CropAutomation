@@ -275,11 +275,10 @@ end
 
 -- ===================== MAIN =====================
 
-local function main(...)
-    local args = {...}
-    targetCrop = (args[1] and args[1] ~= '') and args[1] or config.targetCropName
+local function main()
+    targetCrop = config.targetCropName
     if not targetCrop or targetCrop == '' then
-        print('autoBreed: Pass target crop as argument (e.g. autoBreed diareed) or set config.targetCropName')
+        print('autoBreed: Set config.targetCropName (e.g. diareed, saltyRoot)')
         return
     end
     targetCrop = targetCrop:gsub('^%s+', ''):gsub('%s+$', '')
@@ -344,4 +343,4 @@ local function main(...)
     print('autoBreed: Complete!')
 end
 
-main(...)
+main()
