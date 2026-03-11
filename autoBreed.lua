@@ -258,10 +258,10 @@ end
 local function main()
     targetCrop = config.targetCropName
     if not targetCrop or targetCrop == '' then
-        targetCrop = nil  -- will use slot 1 after first scan
-    else
-        targetCrop = targetCrop:gsub('^%s+', ''):gsub('%s+$', '')
+        print('autoBreed: Set config.targetCropName (e.g. diareed, stickreed)')
+        return
     end
+    targetCrop = targetCrop:gsub('^%s+', ''):gsub('%s+$', '')
 
     action.initWork()
     print('autoBreed: Scanning farm...')
@@ -271,18 +271,6 @@ local function main()
         gps.go(gps.workingSlotToPos(slot))
         local crop = scanner.scan()
         database.updateFarm(slot, crop)
-    end
-
-    -- Resolve target: config or crop in slot 1
-    if not targetCrop or targetCrop == '' then
-        local c = database.getFarm()[1]
-        targetCrop = (c and c.name and c.name ~= 'air' and c.name ~= 'emptyCrop') and c.name or nil
-        if not targetCrop then
-            print('autoBreed: Set config.targetCropName or place target crop in slot 1')
-            events.unhookEvents()
-            return
-        end
-        print(string.format('autoBreed: Target from slot 1: %s', targetCrop))
     end
 
     breedingData = fetchBreedingData()
