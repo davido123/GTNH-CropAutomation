@@ -46,7 +46,7 @@ Lastly, you need a Transvector Binder and Transvector Dislocator which requires 
 7) Follow the commands on screen 'install' --> 'Y' --> 'Y' (The OpenOS floppy disk is no longer needed in the robot afterwards).
 8) Install the required scripts by copying this line of code into the robot (middle-click to paste).
 
-        wget https://raw.githubusercontent.com/DylanTaylor1/GTNH-CropAutomation/main/setup.lua && setup
+        wget https://raw.githubusercontent.com/davido123/GTNH-CropAutomation/main/setup.lua && setup
 
 9) Edit the config (not recommended, but check it out) by entering:
 

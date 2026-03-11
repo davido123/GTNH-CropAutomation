@@ -41,7 +41,7 @@ local config = {
     -- autoBreed: target crop to breed toward (e.g. 'diareed', 'stickreed'). Set in config or leave nil to use slot 1.
     targetCropName = nil,
     -- URL to fetch breeding_data.lua from (optional update). Set to empty string to skip fetch.
-    breedingDataURL = 'https://raw.githubusercontent.com/DylanTaylor1/GTNH-CropAutomation/main/breeding_data.lua',
+    breedingDataURL = 'https://raw.githubusercontent.com/davido123/GTNH-CropAutomation/main/breeding_data.lua',
 
     -- =========== DO NOT CHANGE ===========
 
