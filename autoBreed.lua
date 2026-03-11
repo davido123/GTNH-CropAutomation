@@ -276,12 +276,32 @@ end
 -- ===================== MAIN =====================
 
 local function main()
+    -- Load config from current directory so edits are always picked up (require path may differ on robot)
+    local fn, err = loadfile('config.lua')
+    if fn then
+        local ok, c = pcall(fn)
+        if ok and c and type(c) == 'table' then
+            config = c
+        end
+    end
+    if not config or not config.workingFarmSize then
+        package.loaded['config'] = nil
+        config = require('config')
+    end
     targetCrop = config.targetCropName
+    print(string.format('autoBreed: targetCropName = %s', tostring(targetCrop)))
     if not targetCrop or targetCrop == '' then
         print('autoBreed: Set config.targetCropName (e.g. diareed, saltyRoot)')
         return
     end
+    if type(targetCrop) ~= 'string' then
+        targetCrop = tostring(targetCrop or '')
+    end
     targetCrop = targetCrop:gsub('^%s+', ''):gsub('%s+$', '')
+    if targetCrop == '' then
+        print('autoBreed: Set config.targetCropName (e.g. diareed, saltyRoot)')
+        return
+    end
 
     action.initWork()
     print('autoBreed: Scanning farm...')
