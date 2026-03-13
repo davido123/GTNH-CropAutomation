@@ -1,5 +1,5 @@
 -- autoBreed: breed toward config.targetCropName using preferred parent pairs,
--- then spread target when acquired. Fetches breeding data from config.breedingDataURL.
+-- then spread target when acquired. Uses breeding_data.lua (installed with cropbot).
 --
 -- breeding_data lists only the *best* (highest-probability) parent pairs per crop.
 -- The game still allows all valid mutations (any parent pair with positive ratio);
@@ -12,7 +12,6 @@ local gps = require('gps')
 local scanner = require('scanner')
 local config = require('config')
 local events = require('events')
-local shell = require('shell')
 
 local breedRound = 0
 local targetCrop          -- current target (top of stack) for preferred-parent lookups
@@ -22,22 +21,14 @@ local breedingData
 local spreadPhase = false
 local emptySlot
 
--- ===================== FETCH BREEDING DATA =====================
+-- ===================== LOAD BREEDING DATA =====================
+-- breeding_data.lua is installed once with the rest of the cropbot (e.g. via setup.lua).
 
-local function fetchBreedingData()
-    if config.breedingDataURL and config.breedingDataURL ~= '' then
-        print('autoBreed: Fetching breeding data...')
-        local ok, err = pcall(function()
-            shell.execute(string.format('wget -f %s breeding_data.lua', config.breedingDataURL))
-        end)
-        if not ok then
-            print('autoBreed: Fetch failed, using local breeding_data')
-        end
-    end
+local function loadBreedingData()
     package.loaded['breeding_data'] = nil
     local ok, data = pcall(require, 'breeding_data')
     if not ok or not data then
-        error('autoBreed: Could not load breeding_data.lua')
+        error('autoBreed: Could not load breeding_data.lua (install with setup.lua)')
     end
     return data
 end
@@ -428,7 +419,7 @@ local function main()
         database.updateFarm(slot, crop)
     end
 
-    breedingData = fetchBreedingData()
+    breedingData = loadBreedingData()
     local entry, canonical = getBreedingEntry(targetCrop)
     if canonical then targetCrop = canonical end
     mainTarget = targetCrop
