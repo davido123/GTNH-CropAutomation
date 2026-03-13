@@ -1,5 +1,11 @@
 -- autoBreed: breed toward config.targetCropName using preferred parent pairs,
 -- then spread target when acquired. Fetches breeding data from config.breedingDataURL.
+--
+-- breeding_data lists only the *best* (highest-probability) parent pairs per crop.
+-- The game still allows all valid mutations (any parent pair with positive ratio);
+-- many lower-chance pairs are not in our data. So chain breeding from e.g. tier-1
+-- crops works: we prefer listed pairs when we have them, but any crossbreeding can
+-- produce useful mutations over time, including ones not in the data.
 local action = require('action')
 local database = require('database')
 local gps = require('gps')
@@ -9,7 +15,9 @@ local events = require('events')
 local shell = require('shell')
 
 local breedRound = 0
-local targetCrop
+local targetCrop          -- current target (top of stack) for preferred-parent lookups
+local mainTarget          -- final goal from config; spread phase only spreads this
+local targetStack = {}    -- stack of targets: [mainTarget] or [mainTarget, subGoal1, ...]
 local breedingData
 local spreadPhase = false
 local emptySlot
@@ -36,26 +44,91 @@ end
 
 -- ===================== TARGET & PREFERRED PAIRS =====================
 
+-- Normalize name for comparison (game may use "saltyRoot", data has "Salty Root")
+local function norm(name)
+    if not name or name == '' then return '' end
+    return string.lower(name):gsub('%s+', '')
+end
+
 -- Case-insensitive lookup: return (breeding entry, canonical key) for target name
 local function getBreedingEntry(name)
     if not name or not breedingData then return nil, nil end
-    local lower = string.lower(name)
+    local n = norm(name)
     for k, v in pairs(breedingData) do
-        if string.lower(k) == lower then return v, k end
+        if norm(k) == n then return v, k end
     end
     return nil, nil
 end
 
 local function isTargetCrop(name)
-    return name and targetCrop and string.lower(name) == string.lower(targetCrop)
+    return name and targetCrop and norm(name) == norm(targetCrop)
+end
+
+local function isMainTarget(name)
+    return name and mainTarget and norm(name) == norm(mainTarget)
+end
+
+-- Is any crop with this name (case-insensitive) on the working farm?
+local function hasCropOnFarm(name)
+    if not name or name == '' then return false end
+    local farm = database.getFarm()
+    local n = norm(name)
+    for slot = 1, config.workingFarmArea do
+        local c = farm[slot]
+        if c and c.name and norm(c.name) == n and c.name ~= 'air' and c.name ~= 'emptyCrop' then
+            return true
+        end
+    end
+    return false
+end
+
+-- Names from first acquisition pair for target (parents that can produce target without having it)
+local function getRequiredParentsFromFirstPair(targetName)
+    local entry = getBreedingEntry(targetName)
+    if not entry or #entry == 0 then return {} end
+    local seen = {}
+    for _, pair in ipairs(entry) do
+        local a, b = pair[1], pair[2]
+        if a and b and norm(a) ~= norm(targetName) and norm(b) ~= norm(targetName) then
+            if not seen[norm(a)] then seen[norm(a)] = a end
+            if not seen[norm(b)] then seen[norm(b)] = b end
+            break
+        end
+    end
+    local out = {}
+    for _, v in pairs(seen) do out[#out + 1] = v end
+    return out
+end
+
+-- Is any preferred parent for this target on the farm?
+local function hasPreferredParentOnFarm(targetName)
+    local entry = getBreedingEntry(targetName)
+    if not entry then return false end
+    for _, pair in ipairs(entry) do
+        for i = 1, 2 do
+            local p = pair[i]
+            if p and hasCropOnFarm(p) then return true end
+        end
+    end
+    return false
+end
+
+-- Is name already in the target stack (avoid pushing same sub-goal twice)?
+local function isInTargetStack(name)
+    if not name then return false end
+    local n = norm(name)
+    for i = 1, #targetStack do
+        if norm(targetStack[i]) == n then return true end
+    end
+    return false
 end
 
 local function isPreferredParent(name)
     local entry = getBreedingEntry(targetCrop)
     if not entry then return false end
-    local lower = name and string.lower(name)
+    local n = norm(name)
     for _, pair in ipairs(entry) do
-        if (pair[1] and string.lower(pair[1]) == lower) or (pair[2] and string.lower(pair[2]) == lower) then
+        if (pair[1] and norm(pair[1]) == n) or (pair[2] and norm(pair[2]) == n) then
             return true
         end
     end
@@ -66,10 +139,10 @@ end
 local function otherInPair(name)
     local entry = getBreedingEntry(targetCrop)
     if not entry then return nil end
-    local lower = name and string.lower(name)
+    local n = norm(name)
     for _, pair in ipairs(entry) do
-        if pair[1] and string.lower(pair[1]) == lower then return pair[2] end
-        if pair[2] and string.lower(pair[2]) == lower then return pair[1] end
+        if pair[1] and norm(pair[1]) == n then return pair[2] end
+        if pair[2] and norm(pair[2]) == n then return pair[1] end
     end
     return nil
 end
@@ -92,7 +165,7 @@ local function bestParentSlotForChild(childSlot, childName)
     for _, pSlot in ipairs(parentSlotsOfChild(childSlot)) do
         local c = farm[pSlot]
         local name = c and c.name
-        if name == 'air' or name == 'emptyCrop' or (want and name and string.lower(name) == string.lower(want)) then
+        if name == 'air' or name == 'emptyCrop' or (want and name and norm(name) == norm(want)) then
             return pSlot
         end
     end
@@ -121,7 +194,7 @@ local function spreadCheckChild(slot, crop)
     elseif scanner.isWeed(crop, 'storage') then
         action.deweed()
         action.placeCropStick()
-    elseif isTargetCrop(crop.name) then
+    elseif isMainTarget(crop.name) then
         local stat = crop.gr + crop.ga - crop.re
         if stat >= config.autoStatThreshold and findEmpty() and crop.gr <= config.workingMaxGrowth and crop.re <= config.workingMaxResistance then
             action.transplant(gps.workingSlotToPos(slot), gps.workingSlotToPos(emptySlot))
@@ -209,9 +282,16 @@ local function breedCheckChild(slot, crop)
         action.placeCropStick()
         return true
     end
-    -- Target acquired -> switch to spread
+    -- Current target acquired: pop sub-goal or switch to spread
     if isTargetCrop(crop.name) then
-        return false
+        if #targetStack > 1 then
+            table.remove(targetStack)
+            targetCrop = targetStack[#targetStack]
+            print(string.format('autoBreed: Sub-goal acquired, now breeding for "%s"', targetCrop))
+            return true
+        else
+            return false
+        end
     end
     -- Preferred parent: transplant to best parent slot to maximize pair
     if isPreferredParent(crop.name) then
@@ -316,13 +396,15 @@ local function main()
     breedingData = fetchBreedingData()
     local entry, canonical = getBreedingEntry(targetCrop)
     if canonical then targetCrop = canonical end
+    mainTarget = targetCrop
+    targetStack = { mainTarget }
     if not entry then
         print(string.format('autoBreed: No breeding data for "%s"; will use any crossbreeding.', targetCrop))
     else
         print(string.format('autoBreed: Using preferred parent pairs for "%s"', targetCrop))
     end
 
-    -- If target already on farm, go to spread
+    -- If main target already on farm, go to spread
     if targetOnFarm() then
         print('autoBreed: Target already on farm – starting spread phase')
         spreadPhase = true
@@ -331,8 +413,42 @@ local function main()
     action.analyzeStorage(true)
     action.restockAll()
 
-    -- Breed phase loop
+    -- Breed phase loop (with sub-goal push/pop)
     while not spreadPhase do
+        -- Sub-goal done: current target appeared on farm (e.g. from restock or last round)
+        if targetOnFarm() then
+            if #targetStack > 1 then
+                table.remove(targetStack)
+                targetCrop = targetStack[#targetStack]
+                print(string.format('autoBreed: Sub-goal on farm, now breeding for "%s"', targetCrop))
+            else
+                spreadPhase = true
+                print('autoBreed: Target acquired – starting spread phase')
+                break
+            end
+        end
+        -- No preferred parent on farm: push a required parent as sub-goal (if it has breeding_data)
+        if not hasPreferredParentOnFarm(targetCrop) then
+            local required = getRequiredParentsFromFirstPair(targetCrop)
+            local pushed = false
+            for _, r in ipairs(required) do
+                if not hasCropOnFarm(r) and not isInTargetStack(r) then
+                    local subEntry = getBreedingEntry(r)
+                    if subEntry and #subEntry > 0 then
+                        local _, subCanon = getBreedingEntry(r)
+                        targetStack[#targetStack + 1] = subCanon or r
+                        targetCrop = targetStack[#targetStack]
+                        print(string.format('autoBreed: Sub-goal: breeding for "%s" first', targetCrop))
+                        pushed = true
+                        break
+                    end
+                end
+            end
+            if not pushed and #required > 0 then
+                -- Have data but can't push (e.g. sub-goal has no data); keep breeding, rely on mutation
+            end
+        end
+
         local cont, stay = breedOnce()
         if not stay then
             spreadPhase = true
