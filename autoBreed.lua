@@ -100,6 +100,41 @@ local function getRequiredParentsFromFirstPair(targetName)
     return out
 end
 
+-- Tree breeding: for main target only, first 2 acquisition parents (e.g. ferru, Iron Oreberry for Salty Root)
+local function getTreeSubGoals(targetName)
+    if not targetName or not mainTarget or norm(targetName) ~= norm(mainTarget) then return {} end
+    local entry = getBreedingEntry(targetName)
+    if not entry or #entry == 0 then return {} end
+    local order = {}
+    local seen = {}
+    for _, pair in ipairs(entry) do
+        local a, b = pair[1], pair[2]
+        if a and b and norm(a) ~= norm(targetName) and norm(b) ~= norm(targetName) then
+            for _, p in ipairs({ a, b }) do
+                if not seen[norm(p)] then
+                    local _, canon = getBreedingEntry(p)
+                    local name = canon or p
+                    seen[norm(p)] = name
+                    order[#order + 1] = name
+                    if #order >= 2 then break end
+                end
+            end
+            if #order >= 2 then break end
+        end
+    end
+    return order
+end
+
+-- Are all tree sub-goals for main target on the farm? (used to sub-breed both simultaneously)
+local function haveAllTreeSubGoalsOnFarm()
+    local tree = getTreeSubGoals(mainTarget)
+    if #tree == 0 then return true end
+    for _, name in ipairs(tree) do
+        if not hasCropOnFarm(name) then return false end
+    end
+    return true
+end
+
 -- Is any preferred parent for this target on the farm?
 local function hasPreferredParentOnFarm(targetName)
     local entry = getBreedingEntry(targetName)
@@ -427,9 +462,18 @@ local function main()
                 break
             end
         end
-        -- No preferred parent on farm: push a required parent as sub-goal (if it has breeding_data)
-        if not hasPreferredParentOnFarm(targetCrop) then
-            local required = getRequiredParentsFromFirstPair(targetCrop)
+        -- No preferred parent on farm (or tree: need both first-2 sub-goals): push a sub-goal (if it has breeding_data)
+        local needSubGoal = not hasPreferredParentOnFarm(targetCrop)
+        if not needSubGoal and #targetStack == 1 and mainTarget then
+            needSubGoal = not haveAllTreeSubGoalsOnFarm()
+        end
+        if needSubGoal then
+            local required
+            if #targetStack == 1 and mainTarget then
+                required = getTreeSubGoals(mainTarget)
+            else
+                required = getRequiredParentsFromFirstPair(targetCrop)
+            end
             local pushed = false
             for _, r in ipairs(required) do
                 if not hasCropOnFarm(r) and not isInTargetStack(r) then
