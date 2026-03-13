@@ -27,10 +27,18 @@ local emptySlot
 local function loadBreedingData()
     package.loaded['breeding_data'] = nil
     local ok, data = pcall(require, 'breeding_data')
-    if not ok or not data then
-        error('autoBreed: Could not load breeding_data.lua (install with setup.lua)')
+    if ok and data then return data end
+    local err = tostring(data or (not ok and 'unknown'))
+    -- Fallback: load from current directory (robot often runs from /home)
+    local fn, err2 = loadfile('breeding_data.lua')
+    if fn then
+        local ok2, data2 = pcall(fn)
+        if ok2 and type(data2) == 'table' then return data2 end
+        err = tostring(data2 or err2 or err)
+    else
+        err = err2 or err
     end
-    return data
+    error('autoBreed: Could not load breeding_data.lua (install with setup.lua). ' .. tostring(err))
 end
 
 -- ===================== TARGET & PREFERRED PAIRS =====================
